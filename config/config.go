@@ -18,6 +18,7 @@ type Display struct {
 
 var Config = struct {
 	Displays []Display
+	OnChangeCommands  []string `yaml:"on_change_commands"`
 }{}
 
 func init() {

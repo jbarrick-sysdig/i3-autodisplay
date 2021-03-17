@@ -58,15 +58,36 @@ func Refresh() {
 		log.Fatalf("Error executing xrandr: %s\n%s", err, out)
 	}
 
-	for _, display := range config.Config.Displays {
+	workspaces := map[int]bool{}
+
+	for i := len(config.Config.Displays)-1; i >= 0; i-- {
+		display := config.Config.Displays[i]
+
 		if currentOutputConfiguration[display.Name] {
-			refreshDisplay(display)
+			for _, workspace := range display.Workspaces {
+				if workspaces[workspace] {
+					continue
+				}
+
+				if err := i3.UpdateWorkspace(display, workspace); err != nil {
+					log.Fatalf("Error updating i3 workspaces: %s\n", err)
+				}
+
+				workspaces[workspace] = true
+			}
 		}
 	}
 
 	err = i3.SetCurrentWorkspace(currentWorkspace)
 	if err != nil {
 		log.Fatalf("error setting i3 current workspace: %v", err)
+	}
+
+	for _, onChangeCommand := range config.Config.OnChangeCommands {
+		err = exec.Command("bash", "-c", onChangeCommand).Run()
+		if err != nil {
+			log.Fatalf("error running command (%s): %v", onChangeCommand, err)
+		}
 	}
 
 	lastOutputConfiguration = currentOutputConfiguration
@@ -109,13 +130,6 @@ func getDisplayOptions(display config.Display, active bool) []string {
 	}
 }
 
-func refreshDisplay(display config.Display) {
-	err := i3.UpdateWorkspaces(display)
-	if err != nil {
-		log.Fatalf("Error updating i3 workspaces: %s\n", err)
-	}
-}
-
 func getOutputConfiguration() map[string]bool {
 	config := make(map[string]bool)
 
@@ -136,4 +150,9 @@ func getOutputConfiguration() map[string]bool {
 	}
 
 	return config
+}
+
+func restartPolybar() error {
+	log.Println("restarting polybar")
+	return exec.Command("systemctl", "restart", "--user", "polybar").Run()
 }
